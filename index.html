@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital · modern essentials</title>
+    <!-- favicon -->
+    <link rel="icon" type="image/png" href="fiv.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* ----- white & black theme (light mode) ----- */
+        :root {
+            --bg-light: #ffffff;           /* pure white background */
+            --card-bg: #f4f4f4;             /* soft light gray for cards */
+            --text-main: #000000;            /* primary black text */
+            --text-dim: #444444;              /* dim gray for secondary text */
+            --accent-black: #000000;          /* black accent */
+            --accent-gradient: linear-gradient(45deg, #222, #000); /* black gradient */
+            --border-light: #dddddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-main);
+            padding-bottom: 70px; /* space for bottom nav */
+        }
+
+        /* --- Header & Top Nav --- */
+        header {
+            padding: 20px;
+            background: linear-gradient(to bottom, #f0f0f0, #ffffff); /* light gradient */
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .logo span {
+            color: var(--accent-black); /* black accent instead of purple */
+        }
+
+        /* Right side icons + dropdown */
+        .top-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.05); /* subtle dark background on light */
+            padding: 8px 15px;
+            border-radius: 20px;
+            position: relative;
+            border: 1px solid var(--border-light);
+        }
+
+        .theme-icon, .dropdown-trigger {
+            cursor: pointer;
+            transition: opacity 0.2s;
+            font-size: 1.1rem;
+            color: var(--text-main);
+        }
+        .theme-icon:hover, .dropdown-trigger:hover {
+            opacity: 0.6;
+        }
+
+        /* Dropdown menu */
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            width: 180px;
+            padding: 8px 0;
+            display: none;
+            z-index: 1000;
+            border: 1px solid var(--border-light);
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-menu a {
+            display: block;
+            padding: 12px 20px;
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+
+        .dropdown-menu a:hover {
+            background: #eaeaea;
+        }
+
+        .dropdown-menu a i {
+            width: 24px;
+            color: var(--accent-black); /* black icons */
+        }
+
+        /* --- Categories --- */
+        .categories {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .categories::-webkit-scrollbar { display: none; }
+
+        .cat-pill {
+            padding: 8px 20px;
+            background: #e6e6e6;
+            border-radius: 20px;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #000;
+            border: 1px solid transparent;
+        }
+
+        .cat-pill.active {
+            background: #000;
+            color: #fff;
+            border-color: #000;
+        }
+
+        /* --- Product Grid (flexbox) --- */
+        .product-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            padding: 15px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            flex: 1 1 calc(50% - 15px); /* two cards per row */
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-light);
+        }
+
+        .card-img-container {
+            position: relative;
+            height: 180px;
+            background: #ccc; /* fallback */
+        }
+
+        .card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #000; /* black badge */
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .wishlist-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            color: #000;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .card-info {
+            padding: 15px;
+        }
+
+        .brand { font-size: 12px; color: var(--text-dim); }
+        .product-name { font-weight: 600; margin: 5px 0; color: #000; }
+        
+        .price-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .price { font-weight: bold; font-size: 18px; color: #000; }
+        .old-price { text-decoration: line-through; color: var(--text-dim); font-size: 14px; }
+        .rating { margin-left: auto; color: #000; font-size: 14px; } /* black stars */
+        .rating i { color: #000; } /* black star */
+
+        .add-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #000;
+            background: #fff;
+            color: #000;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .add-btn:hover {
+            background: #000;
+            color: #fff;
+        }
+        .add-btn i {
+            color: currentColor;
+        }
+
+        /* --- Floating Action Button --- */
+        .fab {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            background: var(--accent-gradient);
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            font-size: 20px;
+            color: white;
+        }
+
+        /* --- Bottom Nav --- */
+        nav.bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: #f8f8f8;
+            display: flex;
+            justify-content: space-around;
+            padding: 15px 0;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .nav-item {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .nav-item.active { 
+            color: #000; 
+        }
+        .nav-item span { display: block; font-size: 10px; margin-top: 4px; color: currentColor; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="top-bar">
+            <!-- logo changed to Digital (with span for black accent) -->
+            <div class="logo">Digital<span>.</span></div>
+            <div class="top-actions">
+                <!-- theme toggles (kept, just icons now) -->
+                <i class="fas fa-sun theme-icon"></i>
+                <i class="fas fa-moon theme-icon"></i>
+                <i class="fas fa-desktop theme-icon"></i>
+                <!-- dropdown trigger (user menu) -->
+                <i class="fas fa-user-circle dropdown-trigger"></i>
+                <!-- dropdown menu with links -->
+                <div class="dropdown-menu" id="dropdownMenu">
+                    <a href="#"><i class="fas fa-home"></i> Home</a>
+                    <a href="#"><i class="fas fa-images"></i> Gallery</a>
+                    <a href="#"><i class="fas fa-phone-alt"></i> Contact</a>
+                    <a href="#"><i class="fas fa-map-marker-alt"></i> Location</a>
+                </div>
+            </div>
+        </div>
+        <div class="categories">
+            <div class="cat-pill active">All</div>
+            <div class="cat-pill">Audio</div>
+            <div class="cat-pill">Wearables</div>
+            <div class="cat-pill">Footwear</div>
+            <div class="cat-pill">Home</div>
+        </div>
+    </header>
+
+    <main class="product-grid" id="productGrid">
+        <!-- products injected by JavaScript (now 12 total) -->
+    </main>
+
+    <div class="fab">
+        <i class="fas fa-wand-magic-sparkles"></i>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active"><i class="fas fa-home"></i><span>Home</span></div>
+        <div class="nav-item"><i class="fas fa-search"></i><span>Search</span></div>
+        <div class="nav-item"><i class="fas fa-heart"></i><span>Wishlist</span></div>
+        <div class="nav-item"><i class="fas fa-shopping-bag"></i><span>Bag</span></div>
+        <div class="nav-item"><i class="fas fa-user"></i><span>Profile</span></div>
+    </nav>
+
+    <script>
+        // ----- 12 PRODUCTS (original 4 + 8 new = 12) each with own title -----
+        const products = [
+            // original 4
+            {
+                brand: "SoundCraft",
+                name: "Midnight Pro Headphones",
+                price: 349,
+                oldPrice: 449,
+                rating: 4.8,
+                img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "TimeVault",
+                name: "Ultra Slim Watch SE",
+                price: 279,
+                oldPrice: null,
+                rating: 4.6,
+                img: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "StrideTech",
+                name: "AeroFit Running Shoes",
+                price: 199,
+                oldPrice: 249,
+                rating: 4.9,
+                img: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=400&q=80",
+                badge: "Trending"
+            },
+            {
+                brand: "ZenSpace",
+                name: "Ceramic Diffuser",
+                price: 89,
+                oldPrice: null,
+                rating: 4.7,
+                img: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            // 8 new products (each with own title)
+            {
+                brand: "VisionAir",
+                name: "Wireless Earbuds Pro",
+                price: 129,
+                oldPrice: 159,
+                rating: 4.5,
+                img: "https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?auto=format&fit=crop&w=400&q=80",
+                badge: "New"
+            },
+            {
+                brand: "LuxeHome",
+                name: "Smart LED Lamp",
+                price: 89,
+                oldPrice: null,
+                rating: 4.7,
+                img: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "ApexGear",
+                name: "Gaming Mouse X1",
+                price: 59,
+                oldPrice: 79,
+                rating: 4.8,
+                img: "https://images.unsplash.com/photo-1527814050087-3793815479db?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "PureSound",
+                name: "Noise-Cancelling Headphones",
+                price: 299,
+                oldPrice: 399,
+                rating: 4.9,
+                img: "https://images.unsplash.com/photo-1487215078519-e21cc028cb29?auto=format&fit=crop&w=400&q=80",
+                badge: "Premium"
+            },
+            {
+                brand: "FitTrack",
+                name: "Fitness Band 5",
+                price: 99,
+                oldPrice: 129,
+                rating: 4.4,
+                img: "https://images.unsplash.com/photo-1557431177-36141475e676?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "UrbanPack",
+                name: "Laptop Backpack",
+                price: 79,
+                oldPrice: null,
+                rating: 4.6,
+                img: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "HomeChef",
+                name: "Electric Kettle",
+                price: 49,
+                oldPrice: 69,
+                rating: 4.5,
+                img: "https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?auto=format&fit=crop&w=400&q=80",
+                badge: ""
+            },
+            {
+                brand: "ShutterPro",
+                name: "Action Camera",
+                price: 199,
+                oldPrice: 249,
+                rating: 4.7,
+                img: "https://images.unsplash.com/photo-1524143986875-3b098d78b363?auto=format&fit=crop&w=400&q=80",
+                badge: "Sale"
+            }
+        ];
+
+        const grid = document.getElementById('productGrid');
+
+        function renderProducts() {
+            grid.innerHTML = products.map(p => `
+                <div class="card">
+                    <div class="card-img-container">
+                        ${p.badge ? `<div class="badge">${p.badge}</div>` : ''}
+                        <button class="wishlist-btn"><i class="far fa-heart"></i></button>
+                        <img src="${p.img}" alt="${p.name}" class="card-img" loading="lazy">
+                    </div>
+                    <div class="card-info">
+                        <div class="brand">${p.brand}</div>
+                        <div class="product-name">${p.name}</div>
+                        <div class="price-row">
+                            <span class="price">$${p.price}</span>
+                            ${p.oldPrice ? `<span class="old-price">$${p.oldPrice}</span>` : ''}
+                            <span class="rating"><i class="fas fa-star"></i> ${p.rating}</span>
+                        </div>
+                        <button class="add-btn">
+                            <i class="fas fa-shopping-bag"></i> Add to Bag
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        renderProducts();
+
+        // ----- Category filter (pills) just UI active state -----
+        document.querySelectorAll('.cat-pill').forEach(pill => {
+            pill.addEventListener('click', function() {
+                document.querySelector('.cat-pill.active').classList.remove('active');
+                this.classList.add('active');
+                // no actual filtering – pure UI
+            });
+        });
+
+        // ----- DROPDOWN MENU functionality -----
+        const trigger = document.querySelector('.dropdown-trigger');
+        const dropdown = document.getElementById('dropdownMenu');
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!trigger.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        dropdown.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+        });
+
+        dropdown.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                dropdown.classList.remove('show');
+            });
+        });
+
+        // ----- Add to bag demo -----
+        // event delegation because we re-render (but we render only once)
+        document.querySelectorAll('.add-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                alert('🛍️ Added to your bag!');
+            });
+        });
+
+        // ----- Wishlist button toggle (demo) -----
+        document.querySelectorAll('.wishlist-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const icon = btn.querySelector('i');
+                icon.classList.toggle('far');
+                icon.classList.toggle('fas');
+                // black/white theme: use black for filled heart
+                icon.style.color = icon.classList.contains('fas') ? '#000' : '';
+            });
+        });
+    </script>
+</body>
+</html>

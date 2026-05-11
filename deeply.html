@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anubis AR · Interactive Gallery</title>
+    <!-- A-Frame + 8th Wall XR (AR only, no VR) -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script async src="xr.js" data-preload-chunks="slam"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            border-radius: 0 !important;
+            font-family: 'Inter', 'JetBrains Mono', monospace;
+        }
+        body {
+            background: #000000;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        /* ---------- GALLERY UI ---------- */
+        .gallery-container {
+            position: fixed;
+            inset: 0;
+            background: #0a0a0a;
+            z-index: 200;
+            overflow-y: auto;
+            transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
+            padding: 32px 24px;
+        }
+        .gallery-container.hide-gallery {
+            transform: translateY(100%);
+            pointer-events: none;
+        }
+        .gallery-header {
+            max-width: 1400px;
+            margin: 0 auto 40px auto;
+            border-left: 4px solid #ffffff;
+            padding-left: 20px;
+        }
+        .gallery-header h1 {
+            font-weight: 500;
+            font-size: 26px;
+            letter-spacing: -0.5px;
+        }
+        .gallery-header p {
+            font-size: 12px;
+            color: #7a7a7a;
+            margin-top: 10px;
+        }
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 28px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .model-card {
+            background: #111111;
+            border: 1px solid #2a2a2a;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .model-card:hover {
+            background: #181818;
+            border-color: #444;
+        }
+        .card-thumb {
+            aspect-ratio: 1 / 1;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .card-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: grayscale(0.1);
+        }
+        .card-info {
+            padding: 18px 16px;
+        }
+        .card-title {
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: -0.2px;
+        }
+        .card-sub {
+            font-size: 11px;
+            color: #6a6a6a;
+            margin-top: 8px;
+            text-transform: uppercase;
+        }
+        /* ---------- AR MODE (overlay) ---------- */
+        #ar-view {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            visibility: hidden;
+            background: #000;
+        }
+        #ar-view.active-ar {
+            visibility: visible;
+        }
+        .ar-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 300;
+            pointer-events: none;
+        }
+        .ar-controls button {
+            pointer-events: auto;
+            background: #000000cc;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 12px 24px;
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .ar-controls button:hover {
+            background: #ffffff;
+            color: #000;
+        }
+        .placement-toast {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000000aa;
+            border: 1px solid #ffffffaa;
+            padding: 8px 18px;
+            font-size: 11px;
+            backdrop-filter: blur(4px);
+            z-index: 300;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+        /* reticle styles (injected via js/aframe) */
+        .reticle-ui {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            width: 100px;
+            height: 100px;
+            transform: translate(-50%, 50%);
+            pointer-events: none;
+            z-index: 250;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .reticle-square {
+            width: 70px;
+            height: 70px;
+            border: 2px solid white;
+            background: rgba(255,255,255,0.08);
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .reticle-check {
+            width: 28px;
+            height: 28px;
+            background: #00ff66;
+            clip-path: polygon(28% 38%, 41% 55%, 75% 20%, 85% 30%, 41% 74%, 18% 48%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .reticle-square.valid .reticle-check {
+            opacity: 1;
+        }
+        .reticle-square.valid {
+            border-color: #00ff66;
+            background: rgba(0,255,102,0.15);
+        }
+        /* loader */
+        .ar-loader {
+            position: fixed;
+            bottom: 100px;
+            left: 20px;
+            background: #000000cc;
+            padding: 8px 16px;
+            font-size: 10px;
+            border-left: 2px solid white;
+            z-index: 300;
+        }
+        @media (max-width: 700px) {
+            .models-grid { gap: 16px; }
+            .card-info { padding: 12px; }
+            .gallery-container { padding: 20px 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- GALLERY SECTION (model selection) -->
+    <div id="gallery-view" class="gallery-container">
+        <div class="gallery-header">
+            <h1>ANUBIS · AR CORE</h1>
+            <p>select a model → launch AR → place with green-check reticle</p>
+        </div>
+        <div class="models-grid" id="models-grid"></div>
+    </div>
+
+    <!-- AR VIEW (embedded A-Frame with xr.js) -->
+    <div id="ar-view">
+        <a-scene
+            id="ar-scene"
+            xrweb="allowedDevices: any; mode: ar;"
+            xrextras-gesture-detector
+            xrextras-runtime-error
+            renderer="colorManagement: true; antialias: true;">
+            
+            <!-- camera -->
+            <a-camera id="ar-camera" position="0 1.6 0"></a-camera>
+            
+            <!-- ambient light -->
+            <a-entity light="type: ambient; intensity: 0.8;"></a-entity>
+            <a-entity light="type: directional; intensity: 0.9; position: 2 5 3;"></a-entity>
+            
+            <!-- ground detection receiver (invisible) -->
+            <a-plane class="hit-ground" geometry="primitive: plane; width: 2000; height: 2000" material="transparent: true; opacity: 0" rotation="-90 0 0"></a-plane>
+            
+            <!-- container for placed objects -->
+            <a-entity id="ar-objects-container"></a-entity>
+        </a-scene>
+        
+        <div class="ar-controls">
+            <button id="back-to-gallery-btn">← EXIT AR</button>
+            <button id="clear-ar-objects">CLEAR ALL</button>
+        </div>
+        <div class="placement-toast" id="ar-instruction">align reticle → tap to place</div>
+        <div class="ar-loader" id="ar-loader-status">AR ready</div>
+    </div>
+
+    <script>
+        (function(){
+            // ---------- ASSET DATA (Sketchfab based with thumbnails) ----------
+            const MODELS = [
+                { name: "Dumbo Octopus", sketchfabId: "f4878c34712c4277931822ad2529aa28", thumb: "https://media.sketchfab.com/models/f4878c34712c4277931822ad2529aa28/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/dumbo-octopus-f4878c34712c4277931822ad2529aa28" },
+                { name: "Captain Mizuki", sketchfabId: "c3b8252e770943f78662f2112dff418b", thumb: "https://media.sketchfab.com/models/c3b8252e770943f78662f2112dff418b/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/captain-mizuki-3d-model-c3b8252e770943f78662f2112dff418b" },
+                { name: "High Egg Prices", sketchfabId: "d5a31c37827d4e2ea39ecddbc3e91b03", thumb: "https://media.sketchfab.com/models/d5a31c37827d4e2ea39ecddbc3e91b03/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/high-egg-prices-on-fab-d5a31c37827d4e2ea39ecddbc3e91b03" },
+                { name: "Carrot Cake", sketchfabId: "c9cda700ec94412cab968b03a3367968", thumb: "https://media.sketchfab.com/models/c9cda700ec94412cab968b03a3367968/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/carrot-cake-c9cda700ec94412cab968b03a3367968" },
+                { name: "Croissant", sketchfabId: "3d570199294d492184ddbb2476819ff4", thumb: "https://media.sketchfab.com/models/3d570199294d492184ddbb2476819ff4/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/croissant-3d570199294d492184ddbb2476819ff4" },
+                { name: "German Shepherd", sketchfabId: "3ff58bcbea224720a54d4a2e54226859", thumb: "https://media.sketchfab.com/models/3ff58bcbea224720a54d4a2e54226859/thumbnails/thumbnail.jpg", url: "https://sketchfab.com/3d-models/animated-german-sheperd-3d-animal-model-3ff58bcbea224720a54d4a2e54226859" }
+            ];
+            
+            // state
+            let selectedModel = null;
+            let arSessionActive = false;
+            let currentReticleEntity = null;
+            let hitTestValid = false;
+            let placementTapListener = null;
+            let lastReticleWorldPos = null;
+            
+            // DOM elements
+            const galleryDiv = document.getElementById('gallery-view');
+            const arViewDiv = document.getElementById('ar-view');
+            const backBtn = document.getElementById('back-to-gallery-btn');
+            const clearBtn = document.getElementById('clear-ar-objects');
+            const instructionDiv = document.getElementById('ar-instruction');
+            const loaderSpan = document.getElementById('ar-loader-status');
+            
+            // build gallery cards
+            function buildGallery() {
+                const grid = document.getElementById('models-grid');
+                grid.innerHTML = '';
+                MODELS.forEach((model, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'model-card';
+                    card.setAttribute('data-idx', idx);
+                    card.innerHTML = `
+                        <div class="card-thumb"><img src="${model.thumb}" alt="${model.name}" loading="lazy"></div>
+                        <div class="card-info"><div class="card-title">${model.name}</div><div class="card-sub">click → load in AR</div></div>
+                    `;
+                    card.addEventListener('click', () => selectAndLaunchAR(model));
+                    grid.appendChild(card);
+                });
+            }
+            
+            // preload / select model and switch to AR mode
+            function selectAndLaunchAR(model) {
+                if (arSessionActive) return;
+                selectedModel = model;
+                // show loading toast
+                loaderSpan.innerText = `Preparing: ${model.name}`;
+                // switch to AR view immediately
+                galleryDiv.classList.add('hide-gallery');
+                arViewDiv.classList.add('active-ar');
+                // ensure AR scene is ready and start placement system
+                initARPlacementSystem();
+                // after a short delay, start AR reticle logic
+                setTimeout(() => {
+                    if (typeof window.startReticle === 'function') window.startReticle();
+                    loaderSpan.innerText = `Ready: ${model.name}`;
+                    setTimeout(() => { loaderSpan.innerText = 'tap ground to place'; }, 1500);
+                }, 300);
+            }
+            
+            // global AR reticle & hit testing (no VR, pure AR)
+            let reticleActive = false;
+            let animationFrameId = null;
+            let sceneEl, cameraEl, containerEl, groundPlane;
+            
+            function initARPlacementSystem() {
+                if (!document.querySelector('a-scene')) return;
+                sceneEl = document.querySelector('a-scene');
+                cameraEl = document.getElementById('ar-camera');
+                containerEl = document.getElementById('ar-objects-container');
+                groundPlane = document.querySelector('.hit-ground');
+                
+                // create reticle entity in scene if not exists
+                if (!document.getElementById('ar-reticle-entity')) {
+                    const reticleEntity = document.createElement('a-entity');
+                    reticleEntity.setAttribute('id', 'ar-reticle-entity');
+                    reticleEntity.setAttribute('geometry', 'primitive: plane; width: 0.32; height: 0.32');
+                    reticleEntity.setAttribute('material', 'shader: flat; color: white; transparent: true; opacity: 0.7; side: double');
+                    reticleEntity.setAttribute('rotation', '-90 0 0');
+                    reticleEntity.setAttribute('visible', 'false');
+                    sceneEl.appendChild(reticleEntity);
+                    currentReticleEntity = reticleEntity;
+                    
+                    // inner green check child
+                    const checkChild = document.createElement('a-entity');
+                    checkChild.setAttribute('geometry', 'primitive: plane; width: 0.18; height: 0.18');
+                    checkChild.setAttribute('material', 'color: #00ff66; shader: flat; transparent: false');
+                    checkChild.setAttribute('rotation', '0 0 0');
+                    checkChild.setAttribute('position', '0 0.001 0');
+                    checkChild.setAttribute('visible', 'false');
+                    reticleEntity.appendChild(checkChild);
+                    reticleEntity.setAttribute('data-check-child', checkChild);
+                } else {
+                    currentReticleEntity = document.getElementById('ar-reticle-entity');
+                }
+                
+                // add css overlay reticle indicator (white square + animated tick)
+                createDOMReticleIndicator();
+                
+                // on tap -> place object at reticle position if valid
+                if (placementTapListener) document.removeEventListener('click', placementTapListener);
+                placementTapListener = onScreenTapPlace;
+                document.addEventListener('click', placementTapListener);
+                
+                // start continuous hit testing
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                function hitTestLoop() {
+                    if (!arSessionActive && arViewDiv.classList.contains('active-ar')) arSessionActive = true;
+                    if (!arSessionActive || !sceneEl || !cameraEl) {
+                        if (arSessionActive) animationFrameId = requestAnimationFrame(hitTestLoop);
+                        else return;
+                    }
+                    performHitTestAndUpdateReticle();
+                    animationFrameId = requestAnimationFrame(hitTestLoop);
+                }
+                hitTestLoop();
+            }
+            
+            // DOM reticle overlay with green check (visual only)
+            function createDOMReticleIndicator() {
+                let existing = document.getElementById('dom-reticle');
+                if(existing) existing.remove();
+                const reticleDiv = document.createElement('div');
+                reticleDiv.id = 'dom-reticle';
+                reticleDiv.className = 'reticle-ui';
+                reticleDiv.innerHTML = `<div class="reticle-square"><div class="reticle-check"></div></div>`;
+                document.body.appendChild(reticleDiv);
+            }
+            
+            function updateDOMReticleValid(valid) {
+                const sq = document.querySelector('.reticle-square');
+                if(sq) {
+                    if(valid) sq.classList.add('valid');
+                    else sq.classList.remove('valid');
+                }
+                const instruction = document.getElementById('ar-instruction');
+                if(instruction) {
+                    instruction.innerText = valid ? "✓ green tick ready — tap to place object" : "move camera to find flat surface";
+                }
+            }
+            
+            // core hit test: use XR8 ground plane intersection
+            function performHitTestAndUpdateReticle() {
+                if (!window.XR8 || !XR8.XrController) {
+                    // fallback: use camera raycast with ground plane entity
+                    fallbackRaycastReticle();
+                    return;
+                }
+                try {
+                    // Use 8th Wall's native hit test if available
+                    const hitTestResult = XR8.XrController.getHitTest ? XR8.XrController.getHitTest() : null;
+                    if (hitTestResult && hitTestResult.position) {
+                        const pos = hitTestResult.position;
+                        hitTestValid = true;
+                        lastReticleWorldPos = { x: pos.x, y: pos.y + 0.02, z: pos.z };
+                        if (currentReticleEntity) {
+                            currentReticleEntity.setAttribute('position', `${pos.x} ${pos.y + 0.02} ${pos.z}`);
+                            currentReticleEntity.setAttribute('visible', 'true');
+                            const checkChild = currentReticleEntity.getAttribute('data-check-child');
+                            if(checkChild) checkChild.setAttribute('visible', 'true');
+                        }
+                        updateDOMReticleValid(true);
+                    } else {
+                        hitTestValid = false;
+                        if (currentReticleEntity) currentReticleEntity.setAttribute('visible', 'false');
+                        updateDOMReticleValid(false);
+                    }
+                } catch(e) {
+                    fallbackRaycastReticle();
+                }
+            }
+            
+            // raycast from camera center to ground plane (fallback if XR8 hit test not ready)
+            function fallbackRaycastReticle() {
+                if (!cameraEl || !sceneEl) return;
+                const cameraObj = cameraEl.object3D;
+                const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(cameraObj.quaternion);
+                const origin = cameraObj.position.clone();
+                const planeNormal = new THREE.Vector3(0, 1, 0);
+                const planeConstant = 0; // y=0 ground
+                const denom = planeNormal.dot(direction);
+                if (Math.abs(denom) > 0.0001) {
+                    const t = (planeConstant - planeNormal.dot(origin)) / denom;
+                    if (t > 0.2 && t < 5) {
+                        const hitPoint = origin.clone().add(direction.clone().multiplyScalar(t));
+                        hitTestValid = true;
+                        lastReticleWorldPos = { x: hitPoint.x, y: hitPoint.y + 0.02, z: hitPoint.z };
+                        if (currentReticleEntity) {
+                            currentReticleEntity.setAttribute('position', `${hitPoint.x} ${hitPoint.y + 0.02} ${hitPoint.z}`);
+                            currentReticleEntity.setAttribute('visible', 'true');
+                            const checkChild = currentReticleEntity.getAttribute('data-check-child');
+                            if(checkChild) checkChild.setAttribute('visible', 'true');
+                        }
+                        updateDOMReticleValid(true);
+                        return;
+                    }
+                }
+                hitTestValid = false;
+                if (currentReticleEntity) currentReticleEntity.setAttribute('visible', 'false');
+                updateDOMReticleValid(false);
+            }
+            
+            // tap to place selected object at reticle position
+            function onScreenTapPlace(e) {
+                // avoid button interference
+                if (e.target.closest('.ar-controls') || e.target.closest('#back-to-gallery-btn') || e.target.closest('#clear-ar-objects')) return;
+                if (!arSessionActive || !hitTestValid || !lastReticleWorldPos || !selectedModel) {
+                    loaderSpan.innerText = 'no surface detected';
+                    setTimeout(() => { if(arSessionActive) loaderSpan.innerText = selectedModel ? 'tap on green square' : 'select model'; }, 1000);
+                    return;
+                }
+                placeSelectedObject(lastReticleWorldPos.x, lastReticleWorldPos.y, lastReticleWorldPos.z);
+                // show success
+                loaderSpan.innerText = `placed: ${selectedModel.name}`;
+                setTimeout(() => { if(arSessionActive) loaderSpan.innerText = 'tap to add another'; }, 1500);
+            }
+            
+            // create interactive plane with thumbnail texture + sketchfab link on click
+            function placeSelectedObject(x, y, z) {
+                if (!containerEl || !selectedModel) return;
+                const model = selectedModel;
+                const id = `obj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                const entity = document.createElement('a-entity');
+                entity.setAttribute('id', id);
+                entity.setAttribute('position', `${x} ${y} ${z}`);
+                entity.setAttribute('class', 'placed-ar-object');
+                
+                // create a double-sided plane with texture
+                const plane = document.createElement('a-plane');
+                plane.setAttribute('width', '1.4');
+                plane.setAttribute('height', '1.4');
+                plane.setAttribute('material', `src: url(${model.thumb}); shader: standard; side: double; transparent: false;`);
+                plane.setAttribute('data-sketchfab-link', model.url);
+                plane.setAttribute('data-name', model.name);
+                
+                // interactive components (drag, rotate, scale)
+                plane.setAttribute('xrextras-hold-drag', '');
+                plane.setAttribute('xrextras-two-finger-rotate', '');
+                plane.setAttribute('xrextras-pinch-scale', 'minScale: 0.6; maxScale: 2.2;');
+                
+                // click to open full Sketchfab model
+                plane.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const link = ev.target.getAttribute('data-sketchfab-link');
+                    if (link) window.open(link, '_blank');
+                    loaderSpan.innerText = `opening ${model.name} on Sketchfab`;
+                    setTimeout(() => { if(arSessionActive) loaderSpan.innerText = 'ready'; }, 1200);
+                });
+                
+                entity.appendChild(plane);
+                containerEl.appendChild(entity);
+                
+                // small floating shadow disc
+                const shadowDisc = document.createElement('a-circle');
+                shadowDisc.setAttribute('radius', '0.75');
+                shadowDisc.setAttribute('material', 'color: #000000; opacity: 0.35; transparent: true; side: double');
+                shadowDisc.setAttribute('rotation', '-90 0 0');
+                shadowDisc.setAttribute('position', '0 -0.02 0');
+                entity.appendChild(shadowDisc);
+            }
+            
+            function clearAllObjects() {
+                if (containerEl) {
+                    while(containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
+                    loaderSpan.innerText = 'all objects cleared';
+                    setTimeout(() => { if(arSessionActive) loaderSpan.innerText = 'tap to place new'; }, 1200);
+                }
+            }
+            
+            // exit AR and return to gallery, cleanup
+            function exitARMode() {
+                arSessionActive = false;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+                if (placementTapListener) document.removeEventListener('click', placementTapListener);
+                placementTapListener = null;
+                // hide reticle DOM
+                const domReticle = document.getElementById('dom-reticle');
+                if(domReticle) domReticle.remove();
+                if (currentReticleEntity) currentReticleEntity.setAttribute('visible', 'false');
+                galleryDiv.classList.remove('hide-gallery');
+                arViewDiv.classList.remove('active-ar');
+                selectedModel = null;
+                // cleanup XR session? stop tracking but not needed deep
+                loaderSpan.innerText = 'AR session closed';
+                // optional: run XR8.stop? but keep for next ar start
+            }
+            
+            // manually ensure xr.js initializes when entering AR (already active in scene)
+            function ensureXrReady() {
+                if (window.XR8 && !window.XR8.isInitialized()) {
+                    console.log("waiting for XR8 init");
+                }
+            }
+            
+            // Event listeners for buttons
+            backBtn.addEventListener('click', () => {
+                exitARMode();
+            });
+            clearBtn.addEventListener('click', () => {
+                clearAllObjects();
+            });
+            
+            // on scenes loaded, ensure reticle system is ready when AR becomes active
+            window.addEventListener('xrloaded', () => {
+                console.log('xr.js loaded, AR ready');
+                if (arViewDiv.classList.contains('active-ar')) {
+                    initARPlacementSystem();
+                }
+            });
+            
+            // when scene attached, prepare
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    buildGallery();
+                    ensureXrReady();
+                });
+            } else {
+                buildGallery();
+                ensureXrReady();
+            }
+            
+            // exposure: allow external restart if needed
+            window.selectAndLaunchAR = selectAndLaunchAR;
+            
+            // additional fix to avoid VR remnants: remove any enter-vr buttons from A-Frame
+            setTimeout(() => {
+                const vrButtons = document.querySelectorAll('.a-enter-vr, .a-orientation-modal');
+                vrButtons.forEach(btn => btn.remove());
+            }, 500);
+            
+        })();
+    </script>
+</body>
+  </html>

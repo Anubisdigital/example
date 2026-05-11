@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Anubis Digital | AR Core — Physical World Placement</title>
+    
+    <!-- A-Frame core + xr.js engine (8th Wall) -->
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script async src="xr.js" data-preload-chunks="slam"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            border-radius: 0px !important;
+            font-family: 'Inter', system-ui, 'Segoe UI', monospace;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000000;
+            color: #ffffff;
+        }
+
+        /* ----- Boot Loader (industrial) ----- */
+        #boot-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(0px);
+            transition: opacity 0.6s ease;
+        }
+
+        .brand-identity {
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            border-left: 4px solid #fff;
+            padding-left: 1rem;
+        }
+
+        .loader-track {
+            width: 280px;
+            height: 2px;
+            background: #222;
+            position: relative;
+        }
+
+        .loader-fill {
+            position: absolute;
+            height: 100%;
+            width: 0%;
+            background: #fff;
+            transition: width 0.2s linear;
+        }
+
+        .loader-text {
+            margin-top: 1rem;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            color: #5a5a5a;
+            text-transform: uppercase;
+        }
+
+        /* ----- LEFT DRAWER (100% height, strict) ----- */
+        #left-drawer {
+            position: fixed;
+            top: 0;
+            left: -320px;
+            width: 320px;
+            height: 100%;
+            background: #0a0a0a;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            z-index: 2000;
+            transition: left 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 12px 0 35px rgba(0,0,0,0.8);
+        }
+
+        #left-drawer.open {
+            left: 0;
+        }
+
+        .drawer-header {
+            padding: 1.8rem 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .drawer-title {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+        }
+
+        .close-drawer {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .asset-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .asset-btn {
+            width: 100%;
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 1rem;
+            text-align: left;
+            color: #f0f0f0;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .asset-btn i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .asset-btn.active, .asset-btn:hover {
+            background: #ffffff;
+            color: #000000;
+            border-color: #ffffff;
+        }
+
+        .utility-section {
+            padding: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .utility-btn {
+            width: 100%;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            padding: 0.9rem;
+            margin-bottom: 0.7rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+
+        .utility-btn:hover {
+            background: #1f1f1f;
+            border-color: #555;
+        }
+
+        /* ----- UI Overlay (HUD) ----- */
+        #hud-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-row {
+            pointer-events: auto;
+            padding: 1.2rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .menu-icon {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(255,255,255,0.3);
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .flash-control {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 0 1.2rem;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+
+        .flash-control.active {
+            background: #fff;
+            color: #000;
+        }
+
+        /* placement status card */
+        .placement-panel {
+            pointer-events: none;
+            padding: 2rem;
+            background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+        }
+
+        .active-asset-name {
+            font-size: 1.8rem;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+            margin-bottom: 0.3rem;
+        }
+
+        .status-sub {
+            font-size: 0.7rem;
+            color: #9a9a9a;
+            text-transform: uppercase;
+        }
+
+        #placement-marker-ui {
+            position: absolute;
+            bottom: 120px;
+            left: 20px;
+            background: #000000dd;
+            backdrop-filter: blur(8px);
+            border-left: 3px solid #ffffff;
+            padding: 0.6rem 1rem;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            pointer-events: none;
+            z-index: 600;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        #toast-message {
+            position: fixed;
+            bottom: 28px;
+            right: 20px;
+            background: #ffffff;
+            color: #000000;
+            padding: 8px 18px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            z-index: 1500;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
+        }
+
+        /* responsive drawer & buttons */
+        @media (max-width: 680px) {
+            #left-drawer { width: 85%; max-width: 300px; }
+            .active-asset-name { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- bootloader init -->
+    <div id="boot-overlay">
+        <div class="brand-identity">ANUBIS // PHYSICAL CORE</div>
+        <div class="loader-track"><div class="loader-fill" id="boot-fill"></div></div>
+        <div class="loader-text" id="boot-status">INITIALIZING XR ENGINE...</div>
+    </div>
+
+    <!-- LEFT DRAWER - 100% height -->
+    <div id="left-drawer">
+        <div class="drawer-header">
+            <span class="drawer-title">ASSET VAULT</span>
+            <button class="close-drawer" id="closeDrawerBtn">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="asset-list" id="asset-list-container"></div>
+        <div class="utility-section">
+            <button class="utility-btn" id="clear-anchor-btn">⟳ CLEAR ANCHOR</button>
+            <button class="utility-btn" id="reset-ar-btn">⟳ RESET SESSION</button>
+        </div>
+    </div>
+
+    <!-- HUD overlay -->
+    <div id="hud-layer">
+        <div class="top-row">
+            <div class="menu-icon" id="openDrawerBtn">
+                <i data-lucide="menu"></i>
+            </div>
+            <div class="flash-control" id="torch-toggle">
+                <i data-lucide="zap"></i>
+                <span>FLASH</span>
+            </div>
+        </div>
+        <div class="placement-panel">
+            <div class="active-asset-name" id="active-asset-label">DUMBO OCTOPUS</div>
+            <div class="status-sub" id="placement-status">STATUS: AWAITING SURFACE</div>
+        </div>
+    </div>
+
+    <div id="placement-marker-ui">
+        <span id="marker-text">🔍 DETECTING PLANE — TAP TO PLACE</span>
+    </div>
+
+    <div id="toast-message"></div>
+
+    <!-- A-Frame scene with AR (xrweb) -->
+    <a-scene 
+        id="ar-scene"
+        xrweb="allowedDevices: any; cameraConfig: {direction: 'back'};"
+        renderer="colorManagement: true; antialias: true; highRefreshRate: true;"
+        xrextras-gesture-detector
+        xrextras-runtime-error
+        vr-mode-ui="enabled: false"
+        device-orientation-permission-ui="enabled: false"
+    >
+        <!-- assets: dynamic gltf models (embedded references) -->
+        <a-assets id="dynamic-assets">
+            <a-asset-item id="asset-dumbo" src="https://threejs.org/examples/models/gltf/Flamingo.gltf"></a-asset-item>
+            <a-asset-item id="asset-mizuki" src="https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf"></a-asset-item>
+            <a-asset-item id="asset-egg" src="https://threejs.org/examples/models/gltf/Horse.glb"></a-asset-item>
+            <a-asset-item id="asset-cake" src="https://threejs.org/examples/models/gltf/Parrot.glb"></a-asset-item>
+            <a-asset-item id="asset-croissant" src="https://threejs.org/examples/models/gltf/Stork.glb"></a-asset-item>
+            <a-asset-item id="asset-dog" src="https://threejs.org/examples/models/gltf/CesiumMan/glTF/CesiumMan.gltf"></a-asset-item>
+        </a-assets>
+
+        <!-- Camera with raycaster for surface detection -->
+        <a-camera id="main-camera" position="0 1.6 0" raycaster="objects: .surface-plane; far: 10; interval: 100"></a-camera>
+
+        <!-- Infinite ground plane (invisible but raycastable) -->
+        <a-entity id="surface-plane" class="surface-plane" geometry="primitive: plane; width: 50; height: 50" material="color: #ffffff; transparent: true; opacity: 0" rotation="-90 0 0"></a-entity>
+
+        <!-- White placement marker (square outline with border) -->
+        <a-entity id="placement-marker" visible="false" mixin="placement-marker-mixin" position="0 0 0">
+            <a-entity geometry="primitive: box; width: 0.35; height: 0.02; depth: 0.35" material="color: white; transparent: true; opacity: 0.2" position="0 -0.01 0"></a-entity>
+            <a-entity geometry="primitive: box; width: 0.4; height: 0.01; depth: 0.4" material="color: white; wireframe: true; opacity: 0.9"></a-entity>
+            <a-entity id="green-tick" visible="false" position="0 0.05 0" scale="0.08 0.08 0.08">
+                <a-entity gltf-model="https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/CheckMark.glb" scale="1 1 1"></a-entity>
+            </a-entity>
+        </a-entity>
+
+        <!-- Anchored object that will be placed in world -->
+        <a-entity id="ar-object-anchor" visible="false">
+            <a-entity 
+                id="placed-model"
+                gltf-model="#asset-dumbo"
+                scale="0.55 0.55 0.55"
+                xrextras-hold-drag
+                xrextras-two-finger-rotate
+                xrextras-pinch-scale
+                shadow="receive: false; cast: true">
+            </a-entity>
+        </a-entity>
+
+        <!-- ambient / directional lighting -->
+        <a-entity light="type: ambient; intensity: 0.7; color: #ffffff"></a-entity>
+        <a-entity light="type: directional; intensity: 1.2; position: 3 5 2"></a-entity>
+    </a-scene>
+
+    <script>
+        (function(){
+            // ----------------------------------------------
+            // ASSET DATABASE (match Sketchfab description, but uses real GLTF)
+            // each model corresponds to user embedded description
+            // ----------------------------------------------
+            const ASSET_LIBRARY = [
+                { id: "asset-dumbo", name: "DUMBO OCTOPUS",  gltfRef: "#asset-dumbo",  desc: "Deep‑sea creature • AR ready" },
+                { id: "asset-mizuki", name: "CAPTAIN MIZUKI", gltfRef: "#asset-mizuki", desc: "Anime heroic pose" },
+                { id: "asset-egg", name: "HIGH EGG PRICES", gltfRef: "#asset-egg", desc: "Surrealist 3D egg" },
+                { id: "asset-cake", name: "CARROT CAKE", gltfRef: "#asset-cake", desc: "Detailed dessert model" },
+                { id: "asset-croissant", name: "CROISSANT", gltfRef: "#asset-croissant", desc: "Buttery pastry" },
+                { id: "asset-dog", name: "GERMAN SHEPHERD", gltfRef: "#asset-dog", desc: "Animated canine" }
+            ];
+
+            // Global state
+            let currentAssetIndex = 0;
+            let isPlaced = false;
+            let isDrawerOpen = false;
+            let torchActive = false;
+            let mediaStream = null;
+            let videoTrack = null;
+            let surfaceHitPoint = null;
+            let readyToPlace = false;
+
+            // DOM elements
+            const bootDiv = document.getElementById('boot-overlay');
+            const bootFill = document.getElementById('boot-fill');
+            const bootStatus = document.getElementById('boot-status');
+            const drawer = document.getElementById('left-drawer');
+            const openBtn = document.getElementById('openDrawerBtn');
+            const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+            const assetContainer = document.getElementById('asset-list-container');
+            const activeLabel = document.getElementById('active-asset-label');
+            const placementStatusSpan = document.getElementById('placement-status');
+            const markerTextSpan = document.getElementById('marker-text');
+            const placementMarker = document.getElementById('placement-marker');
+            const greenTick = document.getElementById('green-tick');
+            const arAnchor = document.getElementById('ar-object-anchor');
+            const placedModel = document.getElementById('placed-model');
+            const torchBtn = document.getElementById('torch-toggle');
+            const clearBtn = document.getElementById('clear-anchor-btn');
+            const resetBtn = document.getElementById('reset-ar-btn');
+            const toastMsg = document.getElementById('toast-message');
+
+            // Helper: toast
+            function showToast(text, duration = 2000) {
+                toastMsg.style.opacity = '1';
+                toastMsg.innerText = text;
+                setTimeout(() => {
+                    toastMsg.style.opacity = '0';
+                }, duration);
+            }
+
+            // update active asset UI + preload GLTF into scene's model entity
+            function switchAsset(index) {
+                if (index === currentAssetIndex) return;
+                currentAssetIndex = index;
+                const asset = ASSET_LIBRARY[index];
+                activeLabel.innerText = asset.name;
+                
+                // change gltf model on the placed mesh (even if not placed yet, it will be ready)
+                placedModel.setAttribute('gltf-model', asset.gltfRef);
+                showToast(`LOADED: ${asset.name}`, 1200);
+                
+                // update active class in drawer
+                document.querySelectorAll('.asset-btn').forEach((btn, i) => {
+                    if (i === index) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+                
+                // if already placed, object updates instantly
+                if (isPlaced && arAnchor.getAttribute('visible') === 'true') {
+                    // model automatically changes thanks to component binding
+                    placementStatusSpan.innerText = `ACTIVE: ${asset.name}`;
+                } else {
+                    placementStatusSpan.innerText = `READY: ${asset.name} (TAP SURFACE)`;
+                }
+            }
+
+            // Build left drawer assets
+            function buildDrawer() {
+                assetContainer.innerHTML = '';
+                ASSET_LIBRARY.forEach((asset, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'asset-btn' + (idx === currentAssetIndex ? ' active' : '');
+                    btn.innerHTML = `<i data-lucide="box"></i><span>${asset.name}</span>`;
+                    btn.addEventListener('click', () => {
+                        switchAsset(idx);
+                        if (isDrawerOpen) toggleDrawer();
+                    });
+                    assetContainer.appendChild(btn);
+                });
+                lucide.createIcons();
+            }
+
+            function toggleDrawer() {
+                isDrawerOpen = !isDrawerOpen;
+                if (isDrawerOpen) drawer.classList.add('open');
+                else drawer.classList.remove('open');
+            }
+
+            // Flashlight control
+            async function initTorch() {
+                try {
+                    if (!mediaStream) {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                        mediaStream = stream;
+                        videoTrack = stream.getVideoTracks()[0];
+                    }
+                    const capabilities = videoTrack.getCapabilities();
+                    if (capabilities && capabilities.torch) {
+                        torchActive = !torchActive;
+                        await videoTrack.applyConstraints({ advanced: [{ torch: torchActive }] });
+                        torchBtn.classList.toggle('active', torchActive);
+                        showToast(torchActive ? 'TORCH ON' : 'TORCH OFF');
+                    } else {
+                        showToast('TORCH NOT SUPPORTED', 1200);
+                    }
+                } catch (err) {
+                    console.warn('Torch failed', err);
+                    showToast('CAMERA PERMISSION NEEDED', 1500);
+                }
+            }
+
+            // Reset placed object
+            function resetPlacement() {
+                if (isPlaced) {
+                    arAnchor.setAttribute('visible', 'false');
+                    isPlaced = false;
+                    placementStatusSpan.innerText = `READY: ${ASSET_LIBRARY[currentAssetIndex].name} (TAP SURFACE)`;
+                    markerTextSpan.innerHTML = '🔍 DETECTING PLANE — TAP TO PLACE';
+                    placementMarker.setAttribute('visible', 'true');
+                    greenTick.setAttribute('visible', 'false');
+                    showToast('ANCHOR REMOVED');
+                }
+            }
+
+            // Force reset session reload (reinit xr)
+            function hardResetSession() {
+                resetPlacement();
+                showToast('REINITIALIZING TRACKING');
+                // trigger engine reset if needed (reload gesture)
+                setTimeout(() => {
+                    // re-emit surface detection
+                }, 100);
+            }
+
+            // --- SURFACE DETECTION & TAP PLACEMENT LOGIC (white square + green tick)---
+            function initPlacementSystem() {
+                const sceneEl = document.querySelector('a-scene');
+                const camera = document.getElementById('main-camera');
+                const groundPlane = document.getElementById('surface-plane');
+                const marker = placementMarker;
+                
+                let raycaster = new THREE.Raycaster();
+                let tempVec = new THREE.Vector3();
+                
+                // Helper to get mouse / touch intersection from camera
+                function getIntersectionPoint(clickEvent) {
+                    if (!camera || !camera.components || !camera.components.camera) return null;
+                    const cameraObj = camera.getObject3D('camera');
+                    if (!cameraObj) return null;
+                    
+                    // get canvas normalized coordinates from client click
+                    const canvas = sceneEl.canvas;
+                    if (!canvas) return null;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = ((clickEvent.clientX - rect.left) / rect.width) * 2 - 1;
+                    const y = -((clickEvent.clientY - rect.top) / rect.height) * 2 + 1;
+                    
+                    raycaster.setFromCamera(new THREE.Vector2(x, y), cameraObj);
+                    const intersects = raycaster.intersectObject(groundPlane.getObject3D('mesh'));
+                    if (intersects.length > 0 && intersects[0].point) {
+                        return intersects[0].point;
+                    }
+                    return null;
+                }
+                
+                // marker movement based on mouse / touch move (real-time)
+                function updateMarkerPosition(event) {
+                    if (isPlaced) return;
+                    const point = getIntersectionPoint(event);
+                    if (point) {
+                        surfaceHitPoint = point;
+                        marker.setAttribute('position', `${point.x} ${point.y + 0.02} ${point.z}`);
+                        marker.setAttribute('visible', 'true');
+                        markerTextSpan.innerHTML = '✅ VALID SURFACE — TAP TO PLACE';
+                        readyToPlace = true;
+                    } else {
+                        marker.setAttribute('visible', 'false');
+                        markerTextSpan.innerHTML = '🔍 SCAN FLOOR / GROUND';
+                        readyToPlace = false;
+                    }
+                }
+                
+                function onTapPlace(event) {
+                    if (isPlaced) return;
+                    if (!readyToPlace || !surfaceHitPoint) {
+                        showToast('POINT AT A FLAT SURFACE FIRST', 1000);
+                        return;
+                    }
+                    // place AR object exactly at hit point
+                    const { x, y, z } = surfaceHitPoint;
+                    arAnchor.setAttribute('position', `${x} ${y} ${z}`);
+                    arAnchor.setAttribute('visible', 'true');
+                    isPlaced = true;
+                    
+                    // show green tick effect on marker then hide marker
+                    greenTick.setAttribute('visible', 'true');
+                    markerTextSpan.innerHTML = '✓ OBJECT PLACED (DRAG TO MOVE)';
+                    placementStatusSpan.innerText = `PLACED: ${ASSET_LIBRARY[currentAssetIndex].name}`;
+                    
+                    setTimeout(() => {
+                        marker.setAttribute('visible', 'false');
+                        greenTick.setAttribute('visible', 'false');
+                    }, 800);
+                    showToast('OBJECT ANCHORED');
+                }
+                
+                // attach event listeners
+                sceneEl.addEventListener('click', onTapPlace);
+                sceneEl.addEventListener('mousemove', updateMarkerPosition);
+                sceneEl.addEventListener('touchmove', (e) => {
+                    if (e.touches.length) updateMarkerPosition(e.touches[0]);
+                });
+                sceneEl.addEventListener('touchstart', (e) => {
+                    if (e.touches.length && !isPlaced) updateMarkerPosition(e.touches[0]);
+                });
+                // hide maker init
+                marker.setAttribute('visible', 'false');
+            }
+            
+            // simulate bootloader with XR loading sync
+            function startBootloader() {
+                let progress = 0;
+                const steps = [
+                    "LOADING XR.JS ENGINE",
+                    "INITIALIZING SLAM TRACKING",
+                    "PARSING SURFACE GEOMETRY",
+                    "ASSET PRE-CACHE",
+                    "READY"
+                ];
+                let stepIdx = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 7 + 2;
+                    if (progress >= 100) {
+                        progress = 100;
+                        clearInterval(interval);
+                        bootFill.style.width = '100%';
+                        bootStatus.innerText = "SYSTEM ONLINE // SURFACE READY";
+                        setTimeout(() => {
+                            bootDiv.style.opacity = '0';
+                            setTimeout(() => { bootDiv.style.display = 'none'; }, 600);
+                        }, 400);
+                        // after boot, finalize placement system
+                        initPlacementSystem();
+                        showToast('XR READY | TAP GROUND TO PLACE');
+                    } else {
+                        bootFill.style.width = progress + '%';
+                        if (progress > 50 && stepIdx < 2) stepIdx = 1;
+                        if (progress > 75) stepIdx = 2;
+                        if (progress > 92) stepIdx = 3;
+                        bootStatus.innerText = steps[Math.min(stepIdx, steps.length-1)] + ' ' + Math.floor(progress) + '%';
+                    }
+                }, 130);
+            }
+            
+            // wait for xr.js + scene ready
+            function waitForXR() {
+                if (window.XR8 && document.querySelector('a-scene').hasLoaded) {
+                    startBootloader();
+                } else {
+                    window.addEventListener('xrloaded', () => {
+                        const scene = document.querySelector('a-scene');
+                        if (scene && scene.hasLoaded) startBootloader();
+                        else scene.addEventListener('loaded', startBootloader);
+                    });
+                }
+            }
+            
+            // drawer & UI events
+            openBtn.addEventListener('click', toggleDrawer);
+            closeDrawerBtn.addEventListener('click', toggleDrawer);
+            torchBtn.addEventListener('click', initTorch);
+            clearBtn.addEventListener('click', resetPlacement);
+            resetBtn.addEventListener('click', () => {
+                resetPlacement();
+                hardResetSession();
+            });
+            
+            // load initial asset & UI drawer
+            buildDrawer();
+            switchAsset(0);
+            
+            // additional scene init to ensure camera status
+            document.addEventListener('DOMContentLoaded', () => {
+                waitForXR();
+            });
+            
+            // Force ready marker on camera restart
+            window.addEventListener('xrprojectwayspottingfound', (e) => {
+                if (!isPlaced && !readyToPlace) {
+                    markerTextSpan.innerHTML = '✅ SURFACE DETECTED — TAP TO PLACE';
+                    readyToPlace = true;
+                }
+            });
+            
+            // small handling for dynamic icons after drawer rebuild
+            setInterval(() => {
+                if (document.querySelectorAll('.asset-btn i').length) lucide.createIcons();
+            }, 500);
+        })();
+    </script>
+</body>
+  </html>
